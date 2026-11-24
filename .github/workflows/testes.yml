@@ -6,8 +6,16 @@ permissions:
   contents: read
 
 jobs:
+  # Cada serviço tem os seus próprios testes e roda sozinho, como no mundo real
   testes:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        projeto: [gateway, servicos/usuarios, servicos/inventario, servicos/chamados, servicos/notificacoes]
+    defaults:
+      run:
+        working-directory: ${{ matrix.projeto }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -20,3 +28,12 @@ jobs:
         run: pytest -q
       - name: Dependências com falhas conhecidas
         run: pip-audit -r requirements.txt
+
+  # Confere se o docker-compose.yml é válido (sem subir nada)
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker compose config --quiet
