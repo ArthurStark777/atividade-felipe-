@@ -101,7 +101,7 @@ def fluxo_completo() -> None:
     cid = chamado["id"]
     verifica("o solicitante é a Ana (vem do token)", chamado["solicitante_id"] == id_ana)
 
-    status, _ = chamar("POST", "/chamados", {"titulo": "Equipamento falso", "descricao": "x", "prioridade": "baixa", "ativo_id": 99999}, token=ana)
+    status, _ = chamar("POST", "/chamados", {"titulo": "Equipamento falso", "descricao": "Teste do script", "prioridade": "baixa", "ativo_id": 99999}, token=ana)
     verifica("equipamento inexistente -> 404 (conferido no Inventário)", status == 404)
 
     print("\n4) Permissões")
@@ -154,16 +154,16 @@ def falha_do_inventario() -> None:
         verifica("/saude mostra o Inventário fora do ar", esperar(lambda: servicos_no_ar().get("inventario") == "fora do ar", 10) is not None)
         verifica("lista de usuários continua funcionando (200)", chamar("GET", "/usuarios", token=ana)[0] == 200)
         verifica("lista de chamados continua funcionando (200)", chamar("GET", "/chamados", token=ana)[0] == 200)
-        status, corpo = chamar("POST", "/chamados", {"titulo": "Com equipamento", "descricao": "x", "prioridade": "baixa", "ativo_id": 1}, token=ana)
+        status, corpo = chamar("POST", "/chamados", {"titulo": "Com equipamento", "descricao": "Teste do script", "prioridade": "baixa", "ativo_id": 1}, token=ana)
         verifica("abrir chamado COM equipamento -> 503 com mensagem clara", status == 503 and "Inventário" in str(corpo), (status, corpo))
-        status, _ = chamar("POST", "/chamados", {"titulo": "Sem equipamento", "descricao": "x", "prioridade": "baixa"}, token=ana)
+        status, _ = chamar("POST", "/chamados", {"titulo": "Sem equipamento", "descricao": "Teste do script", "prioridade": "baixa"}, token=ana)
         verifica("abrir chamado SEM equipamento continua funcionando (201)", status == 201)
         verifica("listar equipamentos -> 503 (e não trava)", chamar("GET", "/ativos", token=carla)[0] == 503)
     finally:
         print("   ... docker compose start inventario")
         docker_compose("start", "inventario")
     verifica("o Inventário volta ao ar", esperar(lambda: servicos_no_ar().get("inventario") == "ok", 60, 1) is not None)
-    status, _ = chamar("POST", "/chamados", {"titulo": "Depois da volta", "descricao": "x", "prioridade": "baixa", "ativo_id": 1}, token=ana)
+    status, _ = chamar("POST", "/chamados", {"titulo": "Depois da volta", "descricao": "Teste do script", "prioridade": "baixa", "ativo_id": 1}, token=ana)
     verifica("abrir chamado com equipamento volta a funcionar (201)", status == 201)
 
 
