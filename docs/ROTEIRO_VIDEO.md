@@ -3,19 +3,19 @@
 Gravação de tela com a sua voz, sem edição. A ordem abaixo é a que o [DESAFIO](../DESAFIO.md) pede.
 **Fale com as suas palavras**: os "pontos de fala" são só um lembrete do que não pode faltar.
 
-Tempo sugerido: **≈ 5 min 40 s**. Publique no YouTube como **não listado** (ou no Google Drive com
+Tempo sugerido: **≈ 5 min 25 s**. Publique no YouTube como **não listado** (ou no Google Drive com
 acesso para quem tiver o link) e cole o link no topo do `README.md`.
 
 ## Antes de gravar (5 minutos)
 
 1. Deixe o terminal com fonte grande e duas abas: uma na raiz do projeto, outra para os `curl`.
-2. Rode uma vez `docker compose up --build` para as imagens ficarem em cache (a subida no vídeo será rápida).
-   Depois `docker compose down -v` para começar do zero, com os dados de exemplo.
-3. Deixe aberto: o README no GitHub (para o diagrama renderizado) e `http://localhost:8000` em uma janela anônima.
-4. Rode `python scripts/teste_integracao.py --falha` uma vez, **antes** de gravar. Se tudo passar, o que você vai
-   mostrar no vídeo vai funcionar. Depois `docker compose down -v` de novo.
+2. Rode uma vez `docker compose up --build -d` (as imagens ficam em cache e a subida no vídeo será rápida) e,
+   com o sistema no ar, `python scripts/teste_integracao.py --falha`. Se tudo passar, o que você vai mostrar no
+   vídeo vai funcionar.
+3. Depois `docker compose down -v`, para gravar do zero, com os dados de exemplo (o chamado novo será o #4).
+4. Deixe aberto: o README no GitHub (para o diagrama renderizado) e `http://localhost:8000` em uma janela anônima.
 
-## 1. A arquitetura (≈ 0:45)
+## 1. A arquitetura (≈ 0:35)
 
 Mostre o **diagrama Mermaid do README** (renderizado no GitHub).
 
@@ -38,7 +38,7 @@ docker compose ps
 Mostre todos **healthy** e que **só o gateway tem porta publicada** (`127.0.0.1:8000->8000`).
 Opcional: `curl http://localhost:8000/saude` mostrando os quatro serviços `ok`.
 
-## 3. O fluxo completo pela tela (≈ 1:30)
+## 3. O fluxo completo pela tela (≈ 1:10)
 
 Em `http://localhost:8000`, entre como **carla@empresa.com** (senha `Helpdesk2026`).
 
@@ -53,7 +53,7 @@ Pontos de fala: "tudo isso passa pelo gateway, no mesmo endereço do monólito";
 "o Chamados perguntou ao Inventário, por HTTP, se o equipamento existe"; ao atribuir, "perguntou ao Usuários
 se a pessoa é técnica".
 
-## 4. A segurança funcionando (≈ 0:45)
+## 4. A segurança funcionando (≈ 0:40)
 
 Sem token:
 ```bash
@@ -73,7 +73,7 @@ Ou, pela tela: entre como **ana@empresa.com** e mostre que só aparecem os chama
 Pontos de fala: "o token é conferido em **cada** serviço, não só no gateway"; "o segredo vem do `.env`/volume,
 não está no código"; "o Chamados **repassa o token** ao chamar os outros".
 
-## 5. Bancos separados (≈ 0:30)
+## 5. Bancos separados (≈ 0:25)
 
 ```bash
 docker volume ls --filter name=helpdesk_dados
@@ -85,7 +85,7 @@ Mostre que o banco de Chamados tem só `chamados` e `comentarios` (**não** tem 
 tem o seu volume. Comente: "não existe mais chave estrangeira entre serviços: o Chamados guarda só o número do
 solicitante e confere por HTTP".
 
-## 6. A falha de um serviço (≈ 1:00)
+## 6. A falha de um serviço (≈ 1:05)
 
 ```bash
 docker compose stop inventario
@@ -95,9 +95,12 @@ Na tela (já logado como Carla ou Ana, com a página carregada **antes** de para
 para mostrar o erro no passo 3.
 
 1. O indicador no topo muda para `inventario: fora do ar` (leva até 5 segundos).
-2. Faça uma ação que não depende do Inventário (por exemplo, atribuir ou resolver outro chamado): a **lista de
-   chamados** e os nomes dos **usuários** continuam carregando. Se quiser, mostre também no terminal:
-   `curl -s http://localhost:8000/usuarios -H "Authorization: Bearer $TOKEN_ANA"` (200).
+2. **Sem clicar em nada que recarregue a tela**, mostre no terminal que Usuários e Chamados continuam no ar e só o
+   Inventário dá 503 (se você recarregar a tela antes do passo 3, a mensagem vermelha já aparece e o erro do passo 3
+   fica igual a ela):
+   ```bash
+   for r in usuarios chamados ativos; do printf "%s -> " $r; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8000/$r -H "Authorization: Bearer $TOKEN_ANA"; done
+   ```
 3. **Abra um chamado escolhendo um equipamento**: aparece o erro claro
    *"O serviço de Inventário está indisponível no momento. Tente novamente em instantes."* (503), sem travar nada.
 4. Abra um chamado **sem** equipamento: funciona.
@@ -111,7 +114,7 @@ Espere o indicador voltar a `ok` e abra um chamado com equipamento de novo.
 Pontos de fala: "isso é o `timeout` + tratamento de falha"; "a conferência acontece **antes** de gravar, então
 nada fica pela metade".
 
-## 7. O que é novo em relação ao monólito (≈ 0:40)
+## 7. O que é novo em relação ao monólito (≈ 0:35)
 
 - **Melhor**: cada serviço pode ser publicado sozinho; uma falha fica isolada (o que vimos); dá para escalar só
   o que precisa; cada parte tem dono, banco e testes.
@@ -121,7 +124,7 @@ nada fica pela metade".
 - Cite uma decisão sua (por exemplo: Redis Streams em vez de publicar/assinar, para os avisos não se perderem
   quando a Notificações cai; ou conferir o token em cada serviço em vez de só no gateway).
 
-## 8. Bônus (≈ 0:30)
+## 8. Bônus (≈ 0:25)
 
 Eventos chegando à Notificações:
 ```bash
