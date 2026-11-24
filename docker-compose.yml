@@ -1,22 +1,163 @@
+# HelpDesk TI em microsserviços. Tudo sobe com:  docker compose up --build
+#
+# - SÓ o gateway publica porta (127.0.0.1:8000). Os serviços, os bancos e o Redis ficam na
+#   rede "interna", que não tem acesso de fora (nem à internet): só se falam entre si.
+# - Cada serviço tem o seu banco, em um volume próprio (dados_*). Nenhum lê o banco do outro.
+# - O segredo dos tokens (JWT_SEGREDO) vem do .env. Se não houver .env, o serviço "segredo"
+#   gera um aleatório na primeira subida e o guarda no volume "segredo" (nunca no código/Git).
+
+name: helpdesk
+
+# Endurecimento comum a todos os contêineres (o mesmo do monólito)
+x-endurecido: &endurecido
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+# Cada serviço responde GET /saude; o Docker usa isso para saber se ele está no ar
+x-saude: &saude
+  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/saude', timeout=2)"]
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 5s
+
 services:
-  helpdesk:
-    build: .
+  # ---------- porta de entrada (único serviço exposto) ----------
+  gateway:
+    <<: *endurecido
+    build: ./gateway
     ports:
       - "127.0.0.1:8000:8000"   # só acessível pelo próprio computador
-    env_file:
-      - path: .env
-        required: false
     environment:
+      USUARIOS_URL: http://usuarios:8000
+      INVENTARIO_URL: http://inventario:8000
+      CHAMADOS_URL: http://chamados:8000
+      NOTIFICACOES_URL: http://notificacoes:8000
+    depends_on:
+      usuarios: {condition: service_healthy}
+      inventario: {condition: service_healthy}
+      chamados: {condition: service_healthy}
+      notificacoes: {condition: service_healthy}
+    healthcheck: *saude
+    networks: [publica, interna]
+
+  # ---------- serviços (sem porta publicada) ----------
+  usuarios:
+    <<: *endurecido
+    build: ./servicos/usuarios
+    environment:
+      JWT_SEGREDO: ${JWT_SEGREDO:-}
+      JWT_SEGREDO_ARQUIVO: /segredo/jwt
+      TOKEN_MINUTOS: ${TOKEN_MINUTOS:-60}
+      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+      SENHA_EXEMPLO: ${SENHA_EXEMPLO:-}
+    volumes:
+      - dados_usuarios:/dados       # banco de usuários
+      - segredo:/segredo:ro
+    depends_on:
+      segredo: {condition: service_completed_successfully}
+    healthcheck: *saude
+    networks: [interna]
+
+  inventario:
+    <<: *endurecido
+    build: ./servicos/inventario
+    environment:
+      JWT_SEGREDO: ${JWT_SEGREDO:-}
+      JWT_SEGREDO_ARQUIVO: /segredo/jwt
       DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
     volumes:
-      - dados:/dados
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+      - dados_inventario:/dados     # banco de inventário
+      - segredo:/segredo:ro
+    depends_on:
+      segredo: {condition: service_completed_successfully}
+    healthcheck: *saude
+    networks: [interna]
+
+  chamados:
+    <<: *endurecido
+    build: ./servicos/chamados
+    environment:
+      JWT_SEGREDO: ${JWT_SEGREDO:-}
+      JWT_SEGREDO_ARQUIVO: /segredo/jwt
+      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+      USUARIOS_URL: http://usuarios:8000      # chamadas HTTP: o nome do serviço, não localhost
+      INVENTARIO_URL: http://inventario:8000
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - dados_chamados:/dados       # banco de chamados
+      - segredo:/segredo:ro
+    depends_on:
+      segredo: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck: *saude
+    networks: [interna]
+
+  notificacoes:
+    <<: *endurecido
+    build: ./servicos/notificacoes
+    environment:
+      JWT_SEGREDO: ${JWT_SEGREDO:-}
+      JWT_SEGREDO_ARQUIVO: /segredo/jwt
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - dados_notificacoes:/dados   # banco de notificações
+      - segredo:/segredo:ro
+    depends_on:
+      segredo: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck: *saude
+    networks: [interna]
+
+  # ---------- fila de eventos (bônus) ----------
+  redis:
+    <<: *endurecido
+    image: redis:7-alpine
+    # Sem senha e sem porta publicada: só alcançável dentro da rede "interna".
+    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "no"]
+    user: "999"   # usuário "redis" da imagem (não roda como root)
+    volumes:
+      - dados_fila:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [interna]
+
+  # ---------- gera o segredo dos tokens, uma vez ----------
+  segredo:
+    <<: *endurecido
+    image: python:3.12-slim
+    command:
+      - python
+      - -c
+      - |
+        import os, secrets
+        caminho = "/segredo/jwt"
+        if not os.path.exists(caminho):
+            with open(caminho, "w") as arquivo:
+                arquivo.write(secrets.token_urlsafe(48))
+        os.chmod(caminho, 0o644)
+        print("segredo dos tokens pronto")
+    volumes:
+      - segredo:/segredo
+    networks: [interna]
+
+networks:
+  publica: {}
+  interna:
+    internal: true   # sem acesso de fora e sem saída para a internet
 
 volumes:
-  dados:
+  dados_usuarios:
+  dados_inventario:
+  dados_chamados:
+  dados_notificacoes:
+  dados_fila:
+  segredo:
