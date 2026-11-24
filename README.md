@@ -1,6 +1,6 @@
 # HelpDesk TI · microsserviços
 
-> 🎥 **Vídeo de demonstração (4 a 6 min):** _cole aqui o link do YouTube (não listado) ou do Google Drive antes de entregar_
+> 🎥 **Vídeo de demonstração (4 a 6 min):**(https://youtu.be/i98mg8wMKdI)
 > (o roteiro para gravar está em [docs/ROTEIRO_VIDEO.md](docs/ROTEIRO_VIDEO.md))
 
 Sistema de chamados de TI (no estilo de um GLPI simplificado), em **Python + FastAPI**.
